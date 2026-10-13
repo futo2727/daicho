@@ -214,8 +214,10 @@ html, body, [data-testid="stAppViewContainer"], .stMarkdown, input, textarea, bu
 }
 [data-testid="stAppViewContainer"] { background: var(--bg); }
 
-.block-container { max-width: 760px; padding-top: 2rem; }
-[data-testid="stToolbar"], footer, #MainMenu { visibility: hidden; }
+.block-container { max-width: 760px; padding-top: 2.6rem; }
+/* 上の標準ヘッダー（濃い帯）を消す＝見切れ防止 */
+[data-testid="stHeader"] { display: none; }
+footer, #MainMenu { visibility: hidden; }
 [data-testid="InputInstructions"] { display: none; }
 
 /* 見出し */
