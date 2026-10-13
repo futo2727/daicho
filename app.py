@@ -344,6 +344,48 @@ def products_of(no, df_product):
 
 
 # ------------------------------------------------------------
+# 入口チェック：ポータルからは ?key=… で素通り、直URLは合言葉を聞く
+# ------------------------------------------------------------
+def _access_cfg():
+    try:
+        return dict(st.secrets.get("access", {}))
+    except Exception:
+        return {}
+
+
+def check_access():
+    cfg = _access_cfg()
+    # 設定がまだ無ければ制限しない（うっかり締め出し防止）
+    if not cfg.get("key") and not cfg.get("password"):
+        return True
+    if st.session_state.get("authed"):
+        return True
+
+    # ポータルからのリンク（?key=〇〇）なら合言葉なしで通す
+    url_key = st.query_params.get("key", "")
+    if cfg.get("key") and url_key == cfg["key"]:
+        st.session_state["authed"] = True
+        return True
+
+    # それ以外は合言葉を聞く
+    st.markdown('<div class="app-title">店舗情報 検索</div>', unsafe_allow_html=True)
+    st.markdown('<div class="app-sub">ご利用には合言葉が必要です</div>', unsafe_allow_html=True)
+    with st.form("login"):
+        pw = st.text_input(
+            "合言葉", type="password",
+            label_visibility="collapsed", placeholder="合言葉を入力",
+        )
+        ok = st.form_submit_button("入る", type="primary", use_container_width=True)
+    if ok:
+        if cfg.get("password") and pw == cfg["password"]:
+            st.session_state["authed"] = True
+            st.rerun()
+        else:
+            st.error("合言葉がちがいます")
+    return False
+
+
+# ------------------------------------------------------------
 # 登録・編集フォーム（カードの下に出す）
 # ------------------------------------------------------------
 def render_edit_form(row):
@@ -433,6 +475,10 @@ def render_bulk_tool(df_store):
 def main():
     st.set_page_config(page_title="店舗情報 検索", page_icon="🔍")
     st.markdown(STYLE, unsafe_allow_html=True)
+
+    # 入口チェック（合言葉が必要なら、ここで止める）
+    if not check_access():
+        st.stop()
 
     df_store, df_product, source = load_data()
 
