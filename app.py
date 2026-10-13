@@ -13,8 +13,9 @@ import unicodedata
 import pandas as pd
 import streamlit as st
 
-# スプレッドシート名と、その中のタブ名（本番で使う）
-SPREADSHEET_NAME = "店舗台帳"
+# スプレッドシートのID（URLの /d/ と /edit の間の文字列）と、その中のタブ名
+#   名前ではなくIDで開くので、シート名を変えても（★を付けても）壊れません
+SPREADSHEET_ID = "1Bh-JD0SSsiSq4XrJdD0nrM1otKkFt_LuaLaC3oEcfgA"
 SHEET_STORE = "店舗"
 SHEET_PRODUCT = "商品"
 
@@ -36,30 +37,52 @@ def normalize(value) -> str:
     return s
 
 
+# 読み書き両方できる権限（登録・編集で台帳に書き込むため）
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.readonly",
+]
+
+
+# ------------------------------------------------------------
+# スプレッドシートの『店舗』『商品』タブへの接続
+#   @st.cache_resource … 接続は1回作って使い回す
+#   本番用の設定(secrets)が無ければ (None, None) を返す＝ローカルCSVモード
+# ------------------------------------------------------------
+@st.cache_resource
+def get_worksheets():
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+
+        creds = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"], scopes=SCOPES
+        )
+        gc = gspread.authorize(creds)
+        sh = gc.open_by_key(SPREADSHEET_ID)
+        return sh.worksheet(SHEET_STORE), sh.worksheet(SHEET_PRODUCT)
+    except Exception:
+        return None, None
+
+
+def can_write():
+    # スプレッドシートに接続できていれば、書き込み機能（編集フォーム）を出す
+    ws_store, _ = get_worksheets()
+    return ws_store is not None
+
+
 # ------------------------------------------------------------
 # データ読み込み：本番はスプレッドシート、無ければCSV
 #   @st.cache_data … 一度読んだら覚えておき、毎回読み直さず速くする
 # ------------------------------------------------------------
 @st.cache_data(ttl=300)
 def load_data():
-    # まずスプレッドシート接続を試す（本番用の設定があるときだけ成功する）
-    try:
-        import gspread
-        from google.oauth2.service_account import Credentials
-
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets.readonly",
-            "https://www.googleapis.com/auth/drive.readonly",
-        ]
-        creds = Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"], scopes=scopes
-        )
-        gc = gspread.authorize(creds)
-        sh = gc.open(SPREADSHEET_NAME)
-        df_store = pd.DataFrame(sh.worksheet(SHEET_STORE).get_all_records())
-        df_product = pd.DataFrame(sh.worksheet(SHEET_PRODUCT).get_all_records())
+    ws_store, ws_product = get_worksheets()
+    if ws_store is not None:
+        df_store = pd.DataFrame(ws_store.get_all_records())
+        df_product = pd.DataFrame(ws_product.get_all_records())
         source = "Googleスプレッドシート"
-    except Exception:
+    else:
         # 設定が無い／接続できないときは、同じフォルダのCSVを読む（ローカル開発用）
         df_store = pd.read_csv("店舗.csv", dtype=str, encoding="utf-8-sig")
         df_product = pd.read_csv("商品.csv", dtype=str, encoding="utf-8-sig")
@@ -69,6 +92,31 @@ def load_data():
     df_store = df_store.fillna("").astype(str)
     df_product = df_product.fillna("").astype(str)
     return df_store, df_product, source
+
+
+# ------------------------------------------------------------
+# 書き込み：店舗情報の更新／商品の追加
+# ------------------------------------------------------------
+def _find_store_row(ws_store, no):
+    # A列（店舗番号）を上から見て、ぴったり一致する行番号を返す（見出しが1行目）
+    for i, v in enumerate(ws_store.col_values(1), start=1):
+        if str(v).strip() == str(no).strip():
+            return i
+    return None
+
+
+def update_store(no, name, furikomi, haitatsu, houhou, hi):
+    ws_store, _ = get_worksheets()
+    r = _find_store_row(ws_store, no)
+    if r is None:
+        raise ValueError("店舗番号が見つかりませんでした")
+    # B列〜F列（店舗名・振込名義・配達者名・支払い方法・支払い日）をまとめて更新
+    ws_store.update([[name, furikomi, haitatsu, houhou, hi]], f"B{r}:F{r}")
+
+
+def add_product(no, product_name):
+    _, ws_product = get_worksheets()
+    ws_product.append_row([str(no), product_name])
 
 
 # ------------------------------------------------------------
@@ -241,6 +289,43 @@ def products_of(no, df_product):
 
 
 # ------------------------------------------------------------
+# 登録・編集フォーム（カードの下に出す）
+# ------------------------------------------------------------
+def render_edit_form(row):
+    no = row.get("店舗番号", "")
+    with st.expander("✏️ この店に登録・編集する"):
+        with st.form(f"edit_{no}"):
+            name = st.text_input("店舗名", value=row.get("店舗名", ""))
+            c1, c2 = st.columns(2)
+            with c1:
+                furikomi = st.text_input("振込名義", value=row.get("振込名義", ""))
+                houhou = st.text_input("支払い方法", value=row.get("支払い方法", ""))
+            with c2:
+                haitatsu = st.text_input("配達者名", value=row.get("配達者名", ""))
+                hi = st.text_input("支払い日", value=row.get("支払い日", ""))
+            new_product = st.text_input(
+                "商品を追加（任意・1つ）", placeholder="例：肉まん"
+            )
+            saved = st.form_submit_button(
+                "保存する", type="primary", use_container_width=True
+            )
+
+        if saved:
+            try:
+                update_store(no, name, furikomi, haitatsu, houhou, hi)
+                if new_product.strip():
+                    add_product(no, new_product.strip())
+                st.cache_data.clear()      # 古い内容を捨てて
+                st.success("保存しました。最新の内容を表示します。")
+                st.rerun()                 # 読み直す
+            except Exception:
+                st.error(
+                    "保存できませんでした。ロボット（nyukin-bot）に"
+                    "『編集者』権限があるか確認してください。"
+                )
+
+
+# ------------------------------------------------------------
 # 画面
 # ------------------------------------------------------------
 def main():
@@ -278,12 +363,17 @@ def main():
 
             rows = [row for _, row in results.iterrows()]
             if n <= BIG_CARD_LIMIT:
-                # 少ないとき → 大きいカードで詳しく
-                cards = "".join(
-                    big_card_html(r, products_of(r.get("店舗番号", ""), df_product))
-                    for r in rows
-                )
-                st.markdown(f'<div class="cards-big">{cards}</div>', unsafe_allow_html=True)
+                # 少ないとき → 大きいカードで詳しく表示し、その下に編集フォーム
+                writable = can_write()
+                for r in rows:
+                    st.markdown(
+                        f'<div class="cards-big">'
+                        f'{big_card_html(r, products_of(r.get("店舗番号", ""), df_product))}'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                    if writable:
+                        render_edit_form(r)
             else:
                 # 多いとき → 小さいタイルを並べて見やすく
                 cards = "".join(
