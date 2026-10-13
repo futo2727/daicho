@@ -195,76 +195,71 @@ def search(keyword, df_store, df_product):
 # ------------------------------------------------------------
 STYLE = """
 <style>
-/* 全体の横幅と余白 */
-.block-container { max-width: 960px; padding-top: 2.2rem; }
-/* 画面上の余計なツールバー・フッターを隠す */
+/* 色は最小限：濃い文字＋1色のアクセント（青）だけ */
+:root { --accent:#1d4ed8; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; }
+
+/* 全体：横幅ひかえめ＋余白たっぷり */
+.block-container { max-width: 820px; padding-top: 2rem; }
 [data-testid="stToolbar"], footer, #MainMenu { visibility: hidden; }
-/* 「Press Enter to submit form」の案内を消す */
 [data-testid="InputInstructions"] { display: none; }
 
-/* 見出し */
-.app-title { font-size: 1.9rem; font-weight: 800; letter-spacing: .02em;
-             color: #1f2430; margin: 0 0 .2rem 0; }
-.app-sub   { color: #8a8f9c; font-size: .9rem; margin: 0 0 1.1rem 0; }
+/* 見出し：大きく */
+.app-title { font-size: 2.1rem; font-weight: 800; color: var(--ink); margin: 0 0 .3rem 0; }
+.app-sub   { color: var(--muted); font-size: 1.05rem; margin: 0 0 1.4rem 0; }
 
-/* 検索ボックス */
+/* 検索ボックス：大きく・太枠で分かりやすく */
 div[data-testid="stTextInput"] input {
-  font-size: 1.15rem; padding: .85rem 1.1rem; border-radius: 14px;
-  border: 1px solid #e3e5ec; background: #fff;
+  font-size: 1.35rem; padding: 1rem 1.15rem; border-radius: 12px;
+  border: 2px solid var(--line); background: #fff; color: var(--ink);
 }
-div[data-testid="stTextInput"] input:focus {
-  border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.15);
-}
-/* 検索ボタン */
+div[data-testid="stTextInput"] input:focus { border-color: var(--accent); box-shadow: none; }
+
+/* 検索ボタン：大きく・単色でハッキリ */
 div[data-testid="stFormSubmitButton"] button {
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
-  color: #fff; border: none; border-radius: 14px; padding: .7rem;
-  font-weight: 700; font-size: 1rem; transition: filter .15s;
+  background: var(--accent); color: #fff; border: none; border-radius: 12px;
+  padding: .95rem; font-weight: 700; font-size: 1.2rem;
 }
-div[data-testid="stFormSubmitButton"] button:hover { filter: brightness(1.07); }
+div[data-testid="stFormSubmitButton"] button:hover { background: #1e40af; }
 
-/* 「最新に更新」ボタン（検索ボタンとは別の控えめな見た目） */
+/* 「最新に更新」などの控えめボタン */
 div.stButton > button {
-  border-radius: 10px; border: 1px solid #d9dbe3; background: #fff;
-  color: #4f46e5; font-weight: 600; padding: .35rem .6rem; font-size: .85rem;
+  border-radius: 10px; border: 1px solid var(--line); background: #fff;
+  color: var(--accent); font-weight: 600; padding: .5rem .7rem; font-size: .95rem;
 }
-div.stButton > button:hover { border-color: #4f46e5; background: #f5f5ff; }
+div.stButton > button:hover { border-color: var(--accent); }
 
-/* ヒット件数 */
-.result-count { color: #6b7280; font-size: .9rem; margin: 1.2rem 0 .6rem; }
+/* ヒット件数：読みやすい大きさ */
+.result-count { color: var(--muted); font-size: 1.1rem; margin: 1.5rem 0 .8rem; }
 
 /* カード共通 */
-.card { background: #fff; border: 1px solid #ececf1; border-radius: 16px;
-        box-shadow: 0 1px 3px rgba(20,20,40,.06); transition: transform .12s, box-shadow .12s; }
-.card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(20,20,40,.10); }
-.card .head { display: flex; align-items: center; gap: .6rem; }
-.badge { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff;
-         font-weight: 700; font-size: .78rem; padding: .18rem .6rem; border-radius: 999px;
-         white-space: nowrap; }
-.name { font-weight: 700; color: #1f2430; }
-.lbl  { color: #9aa0ad; font-size: .72rem; margin-right: .35rem; }
-.val  { color: #2b303c; }
-.chip { display: inline-block; background: #eef1f8; color: #4b5563;
-        border-radius: 999px; padding: .12rem .6rem; font-size: .78rem;
-        margin: .12rem .25rem .12rem 0; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+.card .head { display: flex; align-items: center; gap: .7rem; }
+.badge { background: var(--accent); color: #fff; font-weight: 700; font-size: .95rem;
+         padding: .25rem .7rem; border-radius: 8px; white-space: nowrap; }
+.name { font-weight: 800; color: var(--ink); }
+.chip { display: inline-block; background: #eef2ff; color: #1e40af; font-weight: 600;
+        border-radius: 8px; padding: .3rem .75rem; font-size: 1.02rem;
+        margin: .18rem .35rem .18rem 0; }
 
-/* 大きいカード（ヒットが少ないとき） */
-.cards-big { display: flex; flex-direction: column; gap: 16px; }
-.card.big { padding: 20px 22px; }
-.card.big .name { font-size: 1.35rem; }
-.card.big .info { display: grid; grid-template-columns: 1fr 1fr;
-                  gap: 8px 28px; margin: 14px 0 10px; }
-.card.big .prod { border-top: 1px dashed #eceef3; padding-top: 10px; }
+/* 大きいカード（ヒットが少ないとき）：項目は大きく、空欄は出さない */
+.cards-big { display: flex; flex-direction: column; gap: 18px; }
+.card.big { padding: 24px 26px; }
+.card.big .name { font-size: 1.75rem; }
+.card.big .info { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                  gap: 16px 30px; margin: 18px 0 14px; }
+.card.big .row .lbl { display: block; color: var(--muted); font-size: .9rem; margin-bottom: 3px; }
+.card.big .row .val { display: block; color: var(--ink); font-size: 1.3rem; font-weight: 600; }
+.card.big .prod { border-top: 1px solid var(--line); padding-top: 16px; }
+.card.big .prod .lbl { display: block; color: var(--muted); font-size: .9rem; margin-bottom: 8px; }
 
 /* 小さいタイル（ヒットが多いとき）：自動で折り返して並ぶ */
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-              gap: 14px; }
-.card.small { padding: 14px 16px; }
-.card.small .name { font-size: 1.02rem; }
-.card.small .mini { color: #6b7280; font-size: .82rem; margin: 8px 0; line-height: 1.5; }
-.card.small .chips { margin-top: 4px; }
-.card.small .chip { font-size: .74rem; }
-.more { color: #8a8f9c; font-size: .74rem; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+              gap: 16px; }
+.card.small { padding: 18px 20px; }
+.card.small .name { font-size: 1.25rem; }
+.card.small .mini { color: var(--muted); font-size: 1rem; margin: 10px 0; line-height: 1.6; }
+.card.small .chip { font-size: .92rem; }
+.more { color: var(--muted); font-size: .92rem; }
 </style>
 """
 
@@ -276,21 +271,27 @@ def big_card_html(row, products):
     def e(k):
         return html.escape(row.get(k, ""))
 
+    # 中身のある項目だけ出す（空欄は表示しない＝スッキリ）
+    fields = [("振込名義", "振込名義"), ("配達者", "配達者名"),
+              ("支払い方法", "支払い方法"), ("支払い日", "支払い日")]
+    rows = ""
+    for label, key in fields:
+        val = row.get(key, "").strip()
+        if val:
+            rows += (f'<div class="row"><span class="lbl">{label}</span>'
+                     f'<span class="val">{html.escape(val)}</span></div>')
+    if not rows:
+        rows = '<div class="row"><span class="val" style="color:#9aa0ad">基本情報は未登録</span></div>'
+
     chips = "".join(f'<span class="chip">{html.escape(p)}</span>' for p in products)
-    if not chips:
-        chips = '<span class="lbl">（商品なし）</span>'
+    prod = f'<div class="prod"><span class="lbl">取扱商品</span>{chips}</div>' if chips else ""
 
     return (
         '<div class="card big">'
         f'<div class="head"><span class="badge">No.{e("店舗番号")}</span>'
         f'<span class="name">{e("店舗名")}</span></div>'
-        '<div class="info">'
-        f'<div><span class="lbl">振込名義</span><span class="val">{e("振込名義")}</span></div>'
-        f'<div><span class="lbl">配達者</span><span class="val">{e("配達者名")}</span></div>'
-        f'<div><span class="lbl">支払い方法</span><span class="val">{e("支払い方法")}</span></div>'
-        f'<div><span class="lbl">支払い日</span><span class="val">{e("支払い日")}</span></div>'
-        '</div>'
-        f'<div class="prod"><span class="lbl">取扱商品</span>{chips}</div>'
+        f'<div class="info">{rows}</div>'
+        f'{prod}'
         '</div>'
     )
 
@@ -299,20 +300,25 @@ def small_card_html(row, products):
     def e(k):
         return html.escape(row.get(k, ""))
 
+    # 入っている情報だけ短くまとめる
+    bits = []
+    if row.get("配達者名", "").strip():
+        bits.append("配達 " + e("配達者名"))
+    if row.get("支払い方法", "").strip():
+        bits.append("支払 " + e("支払い方法"))
+    mini = f'<div class="mini">{"　".join(bits)}</div>' if bits else ""
+
     shown = products[:4]
     chips = "".join(f'<span class="chip">{html.escape(p)}</span>' for p in shown)
     if len(products) > 4:
         chips += f'<span class="more">+{len(products) - 4}</span>'
-    if not chips:
-        chips = '<span class="lbl">（商品なし）</span>'
+    chips = f'<div class="chips">{chips}</div>' if chips else ""
 
     return (
         '<div class="card small">'
         f'<div class="head"><span class="badge">No.{e("店舗番号")}</span>'
         f'<span class="name">{e("店舗名")}</span></div>'
-        f'<div class="mini"><span class="lbl">配達</span>{e("配達者名")}'
-        f'　<span class="lbl">支払</span>{e("支払い方法")} {e("支払い日")}</div>'
-        f'<div class="chips">{chips}</div>'
+        f'{mini}{chips}'
         '</div>'
     )
 
