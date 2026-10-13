@@ -119,6 +119,39 @@ def add_product(no, product_name):
     ws_product.append_row([str(no), product_name])
 
 
+# 「項目名」→ スプレッドシートの列（A=店舗番号, B=店舗名, …）
+COL_LETTER = {
+    "店舗名": "B",
+    "振込名義": "C",
+    "配達者名": "D",
+    "支払い方法": "E",
+    "支払い日": "F",
+}
+
+
+def bulk_update_field(field, value, store_numbers):
+    """選んだ店たちの、ある1項目を、同じ値でまとめて書き換える"""
+    ws_store, _ = get_worksheets()
+    col_letter = COL_LETTER[field]
+
+    # 店舗番号 → 行番号 の対応表を一度だけ作る（A列を上から）
+    rowmap = {}
+    for i, v in enumerate(ws_store.col_values(1), start=1):
+        key = str(v).strip()
+        if key and key not in rowmap:
+            rowmap[key] = i
+
+    # まとめて1回の通信で書き込む（速い）
+    data = []
+    for no in store_numbers:
+        r = rowmap.get(str(no).strip())
+        if r:
+            data.append({"range": f"{col_letter}{r}", "values": [[value]]})
+    if data:
+        ws_store.batch_update(data)
+    return len(data)
+
+
 # ------------------------------------------------------------
 # 検索：店舗タブの全列 ＋ 商品タブの商品名 から部分一致で探す
 # ------------------------------------------------------------
@@ -326,13 +359,69 @@ def render_edit_form(row):
 
 
 # ------------------------------------------------------------
+# まとめて登録（サイドバー）：選んだ複数の店に、同じ値を一括設定
+# ------------------------------------------------------------
+def render_bulk_tool(df_store):
+    with st.sidebar:
+        st.markdown("### 🛠 まとめて登録")
+        st.caption("選んだ店たちに、同じ値を一括で入れます")
+
+        # 店の選択肢（番号：店舗名）を作る。空行は除く
+        label_to_no = {}
+        options = []
+        for _, r in df_store.iterrows():
+            no = r.get("店舗番号", "")
+            if no:
+                label = f'{no}：{r.get("店舗名", "")}'
+                options.append(label)
+                label_to_no[label] = no
+
+        with st.form("bulk_form"):
+            field = st.selectbox(
+                "まとめて入れる項目",
+                ["配達者名", "支払い方法", "支払い日", "振込名義"],
+            )
+            value = st.text_input("入れる値", placeholder="例：渡辺")
+            selected = st.multiselect(
+                "対象の店（番号や名前で検索して選ぶ）", options
+            )
+            go = st.form_submit_button(
+                "この内容でまとめて保存", type="primary", use_container_width=True
+            )
+
+        if go:
+            nos = [label_to_no[l] for l in selected]
+            if not nos:
+                st.warning("店が1つも選ばれていません。")
+            else:
+                try:
+                    n = bulk_update_field(field, value, nos)
+                    st.cache_data.clear()
+                    st.success(f"{n} 店の「{field}」を『{value}』にしました。")
+                    st.rerun()
+                except Exception:
+                    st.error(
+                        "保存できませんでした。ロボットに『編集者』権限が"
+                        "あるか確認してください。"
+                    )
+
+
+# ------------------------------------------------------------
 # 画面
 # ------------------------------------------------------------
 def main():
-    st.set_page_config(page_title="店舗情報 検索", page_icon="🔍")
+    st.set_page_config(
+        page_title="店舗情報 検索",
+        page_icon="🔍",
+        initial_sidebar_state="collapsed",  # 普段は閉じておく（家族は検索だけ）
+    )
     st.markdown(STYLE, unsafe_allow_html=True)
 
     df_store, df_product, source = load_data()
+
+    # まとめて登録パネル（スプレッドシート接続時のみ・左の「＞」から開く）
+    if can_write():
+        render_bulk_tool(df_store)
 
     st.markdown('<div class="app-title">🔍 店舗情報 検索</div>', unsafe_allow_html=True)
     st.markdown(
