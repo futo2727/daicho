@@ -134,6 +134,13 @@ div[data-testid="stFormSubmitButton"] button {
 }
 div[data-testid="stFormSubmitButton"] button:hover { filter: brightness(1.07); }
 
+/* 「最新に更新」ボタン（検索ボタンとは別の控えめな見た目） */
+div.stButton > button {
+  border-radius: 10px; border: 1px solid #d9dbe3; background: #fff;
+  color: #4f46e5; font-weight: 600; padding: .35rem .6rem; font-size: .85rem;
+}
+div.stButton > button:hover { border-color: #4f46e5; background: #f5f5ff; }
+
 /* ヒット件数 */
 .result-count { color: #6b7280; font-size: .9rem; margin: 1.2rem 0 .6rem; }
 
@@ -277,7 +284,17 @@ def main():
                 )
                 st.markdown(f'<div class="cards-grid">{cards}</div>', unsafe_allow_html=True)
 
-    st.caption(f"データ元：{source}")
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        st.caption(f"データ元：{source}")
+    with c2:
+        if st.button(
+            "🔄 最新に更新",
+            use_container_width=True,
+            help="スプレッドシートに追加・修正した内容をすぐ反映します",
+        ):
+            st.cache_data.clear()  # 覚えていた古いデータを捨てる
+            st.rerun()             # 読み直す
 
 
 if __name__ == "__main__":
