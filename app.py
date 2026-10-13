@@ -114,9 +114,14 @@ def update_store(no, name, furikomi, haitatsu, houhou, hi):
     ws_store.update([[name, furikomi, haitatsu, houhou, hi]], f"B{r}:F{r}")
 
 
-def add_product(no, product_name):
+def add_product(no, product_name, qty=""):
+    # 商品タブ：A=店舗番号, B=商品名, C=店舗名(自動の式), D=個数
+    # C は式なので触らず、新しい行の A・B・D にだけ書き込む
     _, ws_product = get_worksheets()
-    ws_product.append_row([str(no), product_name])
+    next_row = len(ws_product.col_values(1)) + 1
+    ws_product.update([[str(no), str(product_name)]], f"A{next_row}:B{next_row}")
+    if str(qty).strip():
+        ws_product.update([[str(qty)]], f"D{next_row}")
 
 
 # 「項目名」→ スプレッドシートの列（A=店舗番号, B=店舗名, …）
@@ -258,6 +263,7 @@ div.stButton > button:hover { border-color: var(--accent); }
 .chip { display: inline-block; background: var(--chip-bg); color: var(--chip-ink); font-weight: 500;
         border-radius: 999px; padding: .28rem .8rem; font-size: .9rem;
         margin: .18rem .35rem .18rem 0; }
+.chip .qty { color: var(--accent); font-weight: 700; margin-left: .3rem; }
 
 /* 大きいカード（ヒットが少ないとき）：中身のある項目だけ出す */
 .cards-big { display: flex; flex-direction: column; gap: 16px; }
@@ -301,7 +307,7 @@ def big_card_html(row, products):
     if not rows:
         rows = '<div class="row"><span class="val" style="color:#bdb3a2">基本情報はまだ未登録</span></div>'
 
-    chips = "".join(f'<span class="chip">{html.escape(p)}</span>' for p in products)
+    chips = "".join(_chip(n, q) for (n, q) in products)
     prod = f'<div class="prod"><span class="lbl">取扱商品</span>{chips}</div>' if chips else ""
 
     return (
@@ -327,7 +333,7 @@ def small_card_html(row, products):
     mini = f'<div class="mini">{"　".join(bits)}</div>' if bits else ""
 
     shown = products[:4]
-    chips = "".join(f'<span class="chip">{html.escape(p)}</span>' for p in shown)
+    chips = "".join(_chip(n, q) for (n, q) in shown)
     if len(products) > 4:
         chips += f'<span class="more">+{len(products) - 4}</span>'
     chips = f'<div class="chips">{chips}</div>' if chips else ""
@@ -342,7 +348,24 @@ def small_card_html(row, products):
 
 
 def products_of(no, df_product):
-    return df_product[df_product["店舗番号"] == no]["商品名"].tolist()
+    # その店の商品を (商品名, 個数) のリストで返す
+    sub = df_product[df_product["店舗番号"] == no]
+    has_qty = "個数" in df_product.columns
+    out = []
+    for _, r in sub.iterrows():
+        name = str(r.get("商品名", "")).strip()
+        if not name:
+            continue
+        qty = str(r.get("個数", "")).strip() if has_qty else ""
+        out.append((name, qty))
+    return out
+
+
+def _chip(name, qty):
+    label = html.escape(name)
+    if qty:
+        label += f'<span class="qty">×{html.escape(qty)}</span>'
+    return f'<span class="chip">{label}</span>'
 
 
 # ------------------------------------------------------------
@@ -402,9 +425,11 @@ def render_edit_form(row):
             with c2:
                 haitatsu = st.text_input("配達者名", value=row.get("配達者名", ""))
                 hi = st.text_input("支払い日", value=row.get("支払い日", ""))
-            new_product = st.text_input(
-                "商品を追加（任意・1つ）", placeholder="例：肉まん"
-            )
+            pc1, pc2 = st.columns([3, 1])
+            with pc1:
+                new_product = st.text_input("商品を追加（任意・1つ）", placeholder="例：肉まん")
+            with pc2:
+                new_qty = st.text_input("個数", placeholder="例：10")
             saved = st.form_submit_button(
                 "保存する", type="primary", use_container_width=True
             )
@@ -413,7 +438,7 @@ def render_edit_form(row):
             try:
                 update_store(no, name, furikomi, haitatsu, houhou, hi)
                 if new_product.strip():
-                    add_product(no, new_product.strip())
+                    add_product(no, new_product.strip(), new_qty.strip())
                 st.cache_data.clear()      # 古い内容を捨てて
                 st.success("保存しました。最新の内容を表示します。")
                 st.rerun()                 # 読み直す
