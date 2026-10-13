@@ -1,0 +1,6 @@
+# 秘密情報（サービスアカウントの鍵など）は絶対にGitHubへ上げない
+.streamlit/secrets.toml
+
+# Python の一時ファイル
+__pycache__/
+*.pyc

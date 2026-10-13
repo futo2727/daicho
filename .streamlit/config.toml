@@ -1,0 +1,7 @@
+# アプリ全体の色（デフォルトの赤っぽさをやめて、落ち着いた配色にする）
+[theme]
+primaryColor = "#4f46e5"
+backgroundColor = "#f6f7fb"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#1f2430"
+font = "sans serif"

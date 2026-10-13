@@ -1,0 +1,284 @@
+# -*- coding: utf-8 -*-
+# 店舗情報 検索システム（レベル2：検索窓1つ → カード表示）
+#
+# このファイルがアプリ本体です。
+# ・ローカルでは 同じフォルダの 店舗.csv / 商品.csv を読みます
+# ・本番（Streamlit Cloud）では Googleスプレッドシート「店舗台帳」を読みます
+# どちらで動くかは自動で切り替わります。
+
+import html
+import re
+import unicodedata
+
+import pandas as pd
+import streamlit as st
+
+# スプレッドシート名と、その中のタブ名（本番で使う）
+SPREADSHEET_NAME = "店舗台帳"
+SHEET_STORE = "店舗"
+SHEET_PRODUCT = "商品"
+
+# ヒット件数がこの数以下なら「大きいカード」、超えたら「小さいタイル」で表示
+BIG_CARD_LIMIT = 3
+
+
+# ------------------------------------------------------------
+# 文字ならし：表記ゆれがあっても当たるようにする
+#   ・全角/半角をそろえる（NFKC）
+#   ・大文字/小文字をそろえる
+#   ・空白と記号を消す
+# ------------------------------------------------------------
+def normalize(value) -> str:
+    s = unicodedata.normalize("NFKC", str(value))  # 全角→半角などを統一
+    s = s.lower()                                   # 大文字小文字をそろえる
+    # 英数字・ひらがな・カタカナ・漢字 以外（空白・記号）を取り除く
+    s = re.sub(r"[^0-9a-z぀-ゟ゠-ヿ一-鿿]", "", s)
+    return s
+
+
+# ------------------------------------------------------------
+# データ読み込み：本番はスプレッドシート、無ければCSV
+#   @st.cache_data … 一度読んだら覚えておき、毎回読み直さず速くする
+# ------------------------------------------------------------
+@st.cache_data(ttl=300)
+def load_data():
+    # まずスプレッドシート接続を試す（本番用の設定があるときだけ成功する）
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets.readonly",
+            "https://www.googleapis.com/auth/drive.readonly",
+        ]
+        creds = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"], scopes=scopes
+        )
+        gc = gspread.authorize(creds)
+        sh = gc.open(SPREADSHEET_NAME)
+        df_store = pd.DataFrame(sh.worksheet(SHEET_STORE).get_all_records())
+        df_product = pd.DataFrame(sh.worksheet(SHEET_PRODUCT).get_all_records())
+        source = "Googleスプレッドシート"
+    except Exception:
+        # 設定が無い／接続できないときは、同じフォルダのCSVを読む（ローカル開発用）
+        df_store = pd.read_csv("店舗.csv", dtype=str, encoding="utf-8-sig")
+        df_product = pd.read_csv("商品.csv", dtype=str, encoding="utf-8-sig")
+        source = "ローカルCSV"
+
+    # すべて文字として扱い、空欄は空文字にそろえる
+    df_store = df_store.fillna("").astype(str)
+    df_product = df_product.fillna("").astype(str)
+    return df_store, df_product, source
+
+
+# ------------------------------------------------------------
+# 検索：店舗タブの全列 ＋ 商品タブの商品名 から部分一致で探す
+# ------------------------------------------------------------
+def search(keyword, df_store, df_product):
+    key = normalize(keyword)
+    if key == "":
+        return df_store.iloc[0:0]  # 空っぽ（＝ヒットなし）を返す
+
+    # 店舗番号ごとに、その店の商品名をまとめた辞書を作る
+    products_by_store = {}
+    for _, row in df_product.iterrows():
+        no = row.get("店舗番号", "")
+        products_by_store.setdefault(no, []).append(row.get("商品名", ""))
+
+    hit_rows = []
+    for _, row in df_store.iterrows():
+        # その店の「探す対象の文字」を全部つなげる（店舗の全列）
+        parts = [str(v) for v in row.values]
+        # さらに、その店の商品名も対象に加える
+        parts += products_by_store.get(row.get("店舗番号", ""), [])
+        haystack = normalize("".join(parts))
+
+        if key in haystack:
+            hit_rows.append(row)
+
+    if hit_rows:
+        return pd.DataFrame(hit_rows)
+    return df_store.iloc[0:0]
+
+
+# ------------------------------------------------------------
+# 見た目（CSS）：デフォルト感をなくしてカッコよくする
+# ------------------------------------------------------------
+STYLE = """
+<style>
+/* 全体の横幅と余白 */
+.block-container { max-width: 960px; padding-top: 2.2rem; }
+/* 画面上の余計なツールバー・フッターを隠す */
+[data-testid="stToolbar"], footer, #MainMenu { visibility: hidden; }
+/* 「Press Enter to submit form」の案内を消す */
+[data-testid="InputInstructions"] { display: none; }
+
+/* 見出し */
+.app-title { font-size: 1.9rem; font-weight: 800; letter-spacing: .02em;
+             color: #1f2430; margin: 0 0 .2rem 0; }
+.app-sub   { color: #8a8f9c; font-size: .9rem; margin: 0 0 1.1rem 0; }
+
+/* 検索ボックス */
+div[data-testid="stTextInput"] input {
+  font-size: 1.15rem; padding: .85rem 1.1rem; border-radius: 14px;
+  border: 1px solid #e3e5ec; background: #fff;
+}
+div[data-testid="stTextInput"] input:focus {
+  border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.15);
+}
+/* 検索ボタン */
+div[data-testid="stFormSubmitButton"] button {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff; border: none; border-radius: 14px; padding: .7rem;
+  font-weight: 700; font-size: 1rem; transition: filter .15s;
+}
+div[data-testid="stFormSubmitButton"] button:hover { filter: brightness(1.07); }
+
+/* ヒット件数 */
+.result-count { color: #6b7280; font-size: .9rem; margin: 1.2rem 0 .6rem; }
+
+/* カード共通 */
+.card { background: #fff; border: 1px solid #ececf1; border-radius: 16px;
+        box-shadow: 0 1px 3px rgba(20,20,40,.06); transition: transform .12s, box-shadow .12s; }
+.card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(20,20,40,.10); }
+.card .head { display: flex; align-items: center; gap: .6rem; }
+.badge { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff;
+         font-weight: 700; font-size: .78rem; padding: .18rem .6rem; border-radius: 999px;
+         white-space: nowrap; }
+.name { font-weight: 700; color: #1f2430; }
+.lbl  { color: #9aa0ad; font-size: .72rem; margin-right: .35rem; }
+.val  { color: #2b303c; }
+.chip { display: inline-block; background: #eef1f8; color: #4b5563;
+        border-radius: 999px; padding: .12rem .6rem; font-size: .78rem;
+        margin: .12rem .25rem .12rem 0; }
+
+/* 大きいカード（ヒットが少ないとき） */
+.cards-big { display: flex; flex-direction: column; gap: 16px; }
+.card.big { padding: 20px 22px; }
+.card.big .name { font-size: 1.35rem; }
+.card.big .info { display: grid; grid-template-columns: 1fr 1fr;
+                  gap: 8px 28px; margin: 14px 0 10px; }
+.card.big .prod { border-top: 1px dashed #eceef3; padding-top: 10px; }
+
+/* 小さいタイル（ヒットが多いとき）：自動で折り返して並ぶ */
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+              gap: 14px; }
+.card.small { padding: 14px 16px; }
+.card.small .name { font-size: 1.02rem; }
+.card.small .mini { color: #6b7280; font-size: .82rem; margin: 8px 0; line-height: 1.5; }
+.card.small .chips { margin-top: 4px; }
+.card.small .chip { font-size: .74rem; }
+.more { color: #8a8f9c; font-size: .74rem; }
+</style>
+"""
+
+
+# ------------------------------------------------------------
+# カードのHTMLを組み立てる
+# ------------------------------------------------------------
+def big_card_html(row, products):
+    def e(k):
+        return html.escape(row.get(k, ""))
+
+    chips = "".join(f'<span class="chip">{html.escape(p)}</span>' for p in products)
+    if not chips:
+        chips = '<span class="lbl">（商品なし）</span>'
+
+    return (
+        '<div class="card big">'
+        f'<div class="head"><span class="badge">No.{e("店舗番号")}</span>'
+        f'<span class="name">{e("店舗名")}</span></div>'
+        '<div class="info">'
+        f'<div><span class="lbl">振込名義</span><span class="val">{e("振込名義")}</span></div>'
+        f'<div><span class="lbl">配達者</span><span class="val">{e("配達者名")}</span></div>'
+        f'<div><span class="lbl">支払い方法</span><span class="val">{e("支払い方法")}</span></div>'
+        f'<div><span class="lbl">支払い日</span><span class="val">{e("支払い日")}</span></div>'
+        '</div>'
+        f'<div class="prod"><span class="lbl">取扱商品</span>{chips}</div>'
+        '</div>'
+    )
+
+
+def small_card_html(row, products):
+    def e(k):
+        return html.escape(row.get(k, ""))
+
+    shown = products[:4]
+    chips = "".join(f'<span class="chip">{html.escape(p)}</span>' for p in shown)
+    if len(products) > 4:
+        chips += f'<span class="more">+{len(products) - 4}</span>'
+    if not chips:
+        chips = '<span class="lbl">（商品なし）</span>'
+
+    return (
+        '<div class="card small">'
+        f'<div class="head"><span class="badge">No.{e("店舗番号")}</span>'
+        f'<span class="name">{e("店舗名")}</span></div>'
+        f'<div class="mini"><span class="lbl">配達</span>{e("配達者名")}'
+        f'　<span class="lbl">支払</span>{e("支払い方法")} {e("支払い日")}</div>'
+        f'<div class="chips">{chips}</div>'
+        '</div>'
+    )
+
+
+def products_of(no, df_product):
+    return df_product[df_product["店舗番号"] == no]["商品名"].tolist()
+
+
+# ------------------------------------------------------------
+# 画面
+# ------------------------------------------------------------
+def main():
+    st.set_page_config(page_title="店舗情報 検索", page_icon="🔍")
+    st.markdown(STYLE, unsafe_allow_html=True)
+
+    df_store, df_product, source = load_data()
+
+    st.markdown('<div class="app-title">🔍 店舗情報 検索</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="app-sub">検索窓に1つ入れて検索（店舗番号・店舗名・振込名義・配達者・商品名 など）</div>',
+        unsafe_allow_html=True,
+    )
+
+    # 検索窓（1つだけ）と検索ボタン
+    with st.form("search_form"):
+        keyword = st.text_input(
+            "検索",
+            placeholder="例：113 / 肉まん / 田中 …",
+            label_visibility="collapsed",
+        )
+        submitted = st.form_submit_button(
+            "検索", type="primary", use_container_width=True
+        )
+
+    # Enterキーでもボタンでも検索できるようにする
+    if submitted or keyword:
+        results = search(keyword, df_store, df_product)
+        n = len(results)
+
+        if n == 0:
+            st.info("該当なし")
+        else:
+            st.markdown(f'<div class="result-count">{n} 件ヒット</div>', unsafe_allow_html=True)
+
+            rows = [row for _, row in results.iterrows()]
+            if n <= BIG_CARD_LIMIT:
+                # 少ないとき → 大きいカードで詳しく
+                cards = "".join(
+                    big_card_html(r, products_of(r.get("店舗番号", ""), df_product))
+                    for r in rows
+                )
+                st.markdown(f'<div class="cards-big">{cards}</div>', unsafe_allow_html=True)
+            else:
+                # 多いとき → 小さいタイルを並べて見やすく
+                cards = "".join(
+                    small_card_html(r, products_of(r.get("店舗番号", ""), df_product))
+                    for r in rows
+                )
+                st.markdown(f'<div class="cards-grid">{cards}</div>', unsafe_allow_html=True)
+
+    st.caption(f"データ元：{source}")
+
+
+if __name__ == "__main__":
+    main()
