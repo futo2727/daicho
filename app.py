@@ -362,9 +362,8 @@ def render_edit_form(row):
 # まとめて登録（サイドバー）：選んだ複数の店に、同じ値を一括設定
 # ------------------------------------------------------------
 def render_bulk_tool(df_store):
-    with st.sidebar:
-        st.markdown("### 🛠 まとめて登録")
-        st.caption("選んだ店たちに、同じ値を一括で入れます")
+    with st.expander("🛠 まとめて登録（複数の店に同じ値をまとめて入れる）"):
+        st.caption("項目を選び、値を入れ、対象の店を複数えらんで保存します")
 
         # 店の選択肢（番号：店舗名）を作る。空行は除く
         label_to_no = {}
@@ -410,18 +409,10 @@ def render_bulk_tool(df_store):
 # 画面
 # ------------------------------------------------------------
 def main():
-    st.set_page_config(
-        page_title="店舗情報 検索",
-        page_icon="🔍",
-        initial_sidebar_state="collapsed",  # 普段は閉じておく（家族は検索だけ）
-    )
+    st.set_page_config(page_title="店舗情報 検索", page_icon="🔍")
     st.markdown(STYLE, unsafe_allow_html=True)
 
     df_store, df_product, source = load_data()
-
-    # まとめて登録パネル（スプレッドシート接続時のみ・左の「＞」から開く）
-    if can_write():
-        render_bulk_tool(df_store)
 
     st.markdown('<div class="app-title">🔍 店舗情報 検索</div>', unsafe_allow_html=True)
     st.markdown(
@@ -439,6 +430,10 @@ def main():
         submitted = st.form_submit_button(
             "検索", type="primary", use_container_width=True
         )
+
+    # まとめて登録パネル（スプレッドシート接続時のみ・検索窓のすぐ下に出す）
+    if can_write():
+        render_bulk_tool(df_store)
 
     # Enterキーでもボタンでも検索できるようにする
     if submitted or keyword:
