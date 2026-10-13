@@ -195,71 +195,87 @@ def search(keyword, df_store, df_product):
 # ------------------------------------------------------------
 STYLE = """
 <style>
-/* 色は最小限：濃い文字＋1色のアクセント（青）だけ */
-:root { --accent:#1d4ed8; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; }
+@import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap');
 
-/* 全体：横幅ひかえめ＋余白たっぷり */
-.block-container { max-width: 820px; padding-top: 2rem; }
+/* あたたかい配色：生成りの背景＋テラコッタのアクセント1色 */
+:root {
+  --bg:#f7f3ec; --card:#fffdf8; --ink:#3f382f; --muted:#9c9384;
+  --line:#ece2d2; --accent:#c56a49; --accent-dark:#ad5537;
+  --chip-bg:#f2e9db; --chip-ink:#9c6b45;
+}
+
+/* やわらかい丸ゴシックを全体に */
+html, body, [data-testid="stAppViewContainer"], .stMarkdown, input, textarea, button, select,
+[class^="st-"], [class*=" st-"] { font-family:'Zen Maru Gothic', sans-serif !important; }
+/* ただしアイコン（開閉マーク等）は専用フォントに戻す */
+[data-testid="stIconMaterial"], [data-testid="stExpanderToggleIcon"],
+.material-icons, .material-symbols-outlined, .material-symbols-rounded {
+  font-family: 'Material Symbols Rounded','Material Symbols Outlined','Material Icons' !important;
+}
+[data-testid="stAppViewContainer"] { background: var(--bg); }
+
+.block-container { max-width: 760px; padding-top: 2rem; }
 [data-testid="stToolbar"], footer, #MainMenu { visibility: hidden; }
 [data-testid="InputInstructions"] { display: none; }
 
-/* 見出し：大きく */
-.app-title { font-size: 2.1rem; font-weight: 800; color: var(--ink); margin: 0 0 .3rem 0; }
-.app-sub   { color: var(--muted); font-size: 1.05rem; margin: 0 0 1.4rem 0; }
+/* 見出し */
+.app-title { font-size: 1.55rem; font-weight: 700; color: var(--ink); margin: 0 0 .25rem 0; }
+.app-sub   { color: var(--muted); font-size: .9rem; margin: 0 0 1.3rem 0; }
 
-/* 検索ボックス：大きく・太枠で分かりやすく */
+/* 検索ボックス */
 div[data-testid="stTextInput"] input {
-  font-size: 1.35rem; padding: 1rem 1.15rem; border-radius: 12px;
-  border: 2px solid var(--line); background: #fff; color: var(--ink);
+  font-size: 1.1rem; padding: .85rem 1rem; border-radius: 14px;
+  border: 1.5px solid var(--line); background: var(--card); color: var(--ink);
 }
 div[data-testid="stTextInput"] input:focus { border-color: var(--accent); box-shadow: none; }
+div[data-testid="stTextInput"] input::placeholder { color: #c7bca9; }
 
-/* 検索ボタン：大きく・単色でハッキリ */
+/* 検索ボタン */
 div[data-testid="stFormSubmitButton"] button {
-  background: var(--accent); color: #fff; border: none; border-radius: 12px;
-  padding: .95rem; font-weight: 700; font-size: 1.2rem;
+  background: var(--accent); color: #fff; border: none; border-radius: 14px;
+  padding: .8rem; font-weight: 700; font-size: 1.05rem;
 }
-div[data-testid="stFormSubmitButton"] button:hover { background: #1e40af; }
+div[data-testid="stFormSubmitButton"] button:hover { background: var(--accent-dark); }
 
-/* 「最新に更新」などの控えめボタン */
+/* 控えめボタン（最新に更新など） */
 div.stButton > button {
-  border-radius: 10px; border: 1px solid var(--line); background: #fff;
-  color: var(--accent); font-weight: 600; padding: .5rem .7rem; font-size: .95rem;
+  border-radius: 12px; border: 1.5px solid var(--line); background: var(--card);
+  color: var(--accent); font-weight: 500; padding: .45rem .7rem; font-size: .9rem;
 }
 div.stButton > button:hover { border-color: var(--accent); }
 
-/* ヒット件数：読みやすい大きさ */
-.result-count { color: var(--muted); font-size: 1.1rem; margin: 1.5rem 0 .8rem; }
+.result-count { color: var(--muted); font-size: .95rem; margin: 1.4rem 0 .7rem; }
+.no-hit { background: var(--card); border: 1.5px dashed var(--line); border-radius: 16px;
+          padding: 22px; text-align: center; color: var(--muted); font-size: 1rem; }
 
 /* カード共通 */
-.card { background: #fff; border: 1px solid var(--line); border-radius: 14px; }
-.card .head { display: flex; align-items: center; gap: .7rem; }
-.badge { background: var(--accent); color: #fff; font-weight: 700; font-size: .95rem;
-         padding: .25rem .7rem; border-radius: 8px; white-space: nowrap; }
-.name { font-weight: 800; color: var(--ink); }
-.chip { display: inline-block; background: #eef2ff; color: #1e40af; font-weight: 600;
-        border-radius: 8px; padding: .3rem .75rem; font-size: 1.02rem;
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; }
+.card .head { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+.no   { color: var(--muted); font-size: .85rem; font-weight: 500; }
+.name { font-weight: 700; color: var(--ink); }
+.chip { display: inline-block; background: var(--chip-bg); color: var(--chip-ink); font-weight: 500;
+        border-radius: 999px; padding: .28rem .8rem; font-size: .9rem;
         margin: .18rem .35rem .18rem 0; }
 
-/* 大きいカード（ヒットが少ないとき）：項目は大きく、空欄は出さない */
-.cards-big { display: flex; flex-direction: column; gap: 18px; }
-.card.big { padding: 24px 26px; }
-.card.big .name { font-size: 1.75rem; }
-.card.big .info { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-                  gap: 16px 30px; margin: 18px 0 14px; }
-.card.big .row .lbl { display: block; color: var(--muted); font-size: .9rem; margin-bottom: 3px; }
-.card.big .row .val { display: block; color: var(--ink); font-size: 1.3rem; font-weight: 600; }
-.card.big .prod { border-top: 1px solid var(--line); padding-top: 16px; }
-.card.big .prod .lbl { display: block; color: var(--muted); font-size: .9rem; margin-bottom: 8px; }
+/* 大きいカード（ヒットが少ないとき）：中身のある項目だけ出す */
+.cards-big { display: flex; flex-direction: column; gap: 16px; }
+.card.big { padding: 22px 24px; }
+.card.big .name { font-size: 1.4rem; }
+.card.big .info { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                  gap: 14px 26px; margin: 16px 0 12px; }
+.card.big .row .lbl { display: block; color: var(--muted); font-size: .8rem; margin-bottom: 2px; }
+.card.big .row .val { display: block; color: var(--ink); font-size: 1.1rem; font-weight: 500; }
+.card.big .prod { border-top: 1px solid var(--line); padding-top: 14px; }
+.card.big .prod .lbl { display: block; color: var(--muted); font-size: .8rem; margin-bottom: 7px; }
 
-/* 小さいタイル（ヒットが多いとき）：自動で折り返して並ぶ */
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-              gap: 16px; }
-.card.small { padding: 18px 20px; }
-.card.small .name { font-size: 1.25rem; }
-.card.small .mini { color: var(--muted); font-size: 1rem; margin: 10px 0; line-height: 1.6; }
-.card.small .chip { font-size: .92rem; }
-.more { color: var(--muted); font-size: .92rem; }
+/* 小さいタイル（ヒットが多いとき） */
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+              gap: 14px; }
+.card.small { padding: 16px 18px; }
+.card.small .name { font-size: 1.15rem; }
+.card.small .mini { color: var(--muted); font-size: .9rem; margin: 9px 0; line-height: 1.6; }
+.card.small .chip { font-size: .85rem; }
+.more { color: var(--muted); font-size: .85rem; }
 </style>
 """
 
@@ -281,15 +297,15 @@ def big_card_html(row, products):
             rows += (f'<div class="row"><span class="lbl">{label}</span>'
                      f'<span class="val">{html.escape(val)}</span></div>')
     if not rows:
-        rows = '<div class="row"><span class="val" style="color:#9aa0ad">基本情報は未登録</span></div>'
+        rows = '<div class="row"><span class="val" style="color:#bdb3a2">基本情報はまだ未登録</span></div>'
 
     chips = "".join(f'<span class="chip">{html.escape(p)}</span>' for p in products)
     prod = f'<div class="prod"><span class="lbl">取扱商品</span>{chips}</div>' if chips else ""
 
     return (
         '<div class="card big">'
-        f'<div class="head"><span class="badge">No.{e("店舗番号")}</span>'
-        f'<span class="name">{e("店舗名")}</span></div>'
+        f'<div class="head"><span class="name">{e("店舗名")}</span>'
+        f'<span class="no">No.{e("店舗番号")}</span></div>'
         f'<div class="info">{rows}</div>'
         f'{prod}'
         '</div>'
@@ -316,8 +332,8 @@ def small_card_html(row, products):
 
     return (
         '<div class="card small">'
-        f'<div class="head"><span class="badge">No.{e("店舗番号")}</span>'
-        f'<span class="name">{e("店舗名")}</span></div>'
+        f'<div class="head"><span class="name">{e("店舗名")}</span>'
+        f'<span class="no">No.{e("店舗番号")}</span></div>'
         f'{mini}{chips}'
         '</div>'
     )
@@ -332,7 +348,7 @@ def products_of(no, df_product):
 # ------------------------------------------------------------
 def render_edit_form(row):
     no = row.get("店舗番号", "")
-    with st.expander("✏️ この店に登録・編集する"):
+    with st.expander("この店に登録・編集する"):
         with st.form(f"edit_{no}"):
             name = st.text_input("店舗名", value=row.get("店舗名", ""))
             c1, c2 = st.columns(2)
@@ -368,7 +384,7 @@ def render_edit_form(row):
 # まとめて登録（サイドバー）：選んだ複数の店に、同じ値を一括設定
 # ------------------------------------------------------------
 def render_bulk_tool(df_store):
-    with st.expander("🛠 まとめて登録（複数の店に同じ値をまとめて入れる）"):
+    with st.expander("まとめて登録（複数の店に同じ値を入れる）"):
         st.caption("項目を選び、値を入れ、対象の店を複数えらんで保存します")
 
         # 店の選択肢（番号：店舗名）を作る。空行は除く
@@ -420,9 +436,9 @@ def main():
 
     df_store, df_product, source = load_data()
 
-    st.markdown('<div class="app-title">🔍 店舗情報 検索</div>', unsafe_allow_html=True)
+    st.markdown('<div class="app-title">店舗情報 検索</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="app-sub">検索窓に1つ入れて検索（店舗番号・店舗名・振込名義・配達者・商品名 など）</div>',
+        '<div class="app-sub">店舗番号・店舗名・振込名義・配達者・商品名 などで探せます</div>',
         unsafe_allow_html=True,
     )
 
@@ -447,7 +463,10 @@ def main():
         n = len(results)
 
         if n == 0:
-            st.info("該当なし")
+            st.markdown(
+                '<div class="no-hit">該当する店は見つかりませんでした</div>',
+                unsafe_allow_html=True,
+            )
         else:
             st.markdown(f'<div class="result-count">{n} 件ヒット</div>', unsafe_allow_html=True)
 
@@ -477,7 +496,7 @@ def main():
         st.caption(f"データ元：{source}")
     with c2:
         if st.button(
-            "🔄 最新に更新",
+            "最新に更新",
             use_container_width=True,
             help="スプレッドシートに追加・修正した内容をすぐ反映します",
         ):
