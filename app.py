@@ -85,16 +85,24 @@ def search(keyword, df_store, df_product):
         no = row.get("店舗番号", "")
         products_by_store.setdefault(no, []).append(row.get("商品名", ""))
 
+    # 数字だけ入力されたら「店舗番号の検索」とみなす（→ 完全一致で1件に絞る）
+    key_is_number = key.isdigit()
+
     hit_rows = []
     for _, row in df_store.iterrows():
-        # その店の「探す対象の文字」を全部つなげる（店舗の全列）
-        parts = [str(v) for v in row.values]
-        # さらに、その店の商品名も対象に加える
-        parts += products_by_store.get(row.get("店舗番号", ""), [])
-        haystack = normalize("".join(parts))
+        no = row.get("店舗番号", "")
 
-        if key in haystack:
-            hit_rows.append(row)
+        if key_is_number:
+            # 店舗番号は完全一致だけ（113 で 1130 などを拾わない）
+            if normalize(no) == key:
+                hit_rows.append(row)
+        else:
+            # 文字検索は今までどおり部分一致（店舗の全列＋その店の商品名）
+            parts = [str(v) for v in row.values]
+            parts += products_by_store.get(no, [])
+            haystack = normalize("".join(parts))
+            if key in haystack:
+                hit_rows.append(row)
 
     if hit_rows:
         return pd.DataFrame(hit_rows)
