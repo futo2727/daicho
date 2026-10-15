@@ -497,6 +497,81 @@ def render_bulk_tool(df_store):
 
 
 # ------------------------------------------------------------
+# 送り／引き取りの仕分け：配達者が空欄の店を1件ずつ、2択で埋める
+# ------------------------------------------------------------
+def _triage_set(no, value):
+    # 配達者名の欄に 送り／引き取り を書く
+    bulk_update_field("配達者名", value, [no])
+
+
+def render_triage(df_store):
+    with st.expander("送り／引き取りの仕分け（配達者が空欄の店）"):
+        # 作業リスト（配達者が空欄の店）を一度だけ作る
+        if "triage_q" not in st.session_state:
+            st.session_state.triage_q = [
+                (str(r.get("店舗番号", "")), str(r.get("店舗名", "")))
+                for _, r in df_store.iterrows()
+                if str(r.get("店舗番号", "")).strip()
+                and not str(r.get("配達者名", "")).strip()
+            ]
+            st.session_state.triage_i = 0
+
+        q = st.session_state.triage_q
+        i = st.session_state.triage_i
+        total = len(q)
+
+        # 作り直し（最新の空欄を取り直す）
+        top = st.columns([3, 1])
+        with top[1]:
+            if st.button("作り直す", use_container_width=True,
+                         help="配達者が空欄の店を最新の状態で取り直します"):
+                st.session_state.pop("triage_q", None)
+                st.cache_data.clear()
+                st.rerun()
+
+        if total == 0:
+            st.info("配達者が空欄の店はありません。")
+            return
+        if i >= total:
+            st.success(f"完了！{total} 件すべて仕分けしました。")
+            return
+
+        no, name = q[i]
+        done = i
+        st.caption(f"済み {done} 件 ／ 残り {total - done} 件")
+        st.progress(done / total)
+        st.markdown(
+            f'<div style="font-size:1.5rem;font-weight:700;margin:.4rem 0;">'
+            f'{name}　<span style="color:#9c9384;font-size:1rem;">No.{no}</span></div>',
+            unsafe_allow_html=True,
+        )
+        st.write("この店は？")
+
+        b = st.columns(2)
+        with b[0]:
+            if st.button("送り", key="tri_okuri", use_container_width=True):
+                _triage_set(no, "送り")
+                st.session_state.triage_i += 1
+                st.rerun()
+        with b[1]:
+            if st.button("引き取り", key="tri_hiki", use_container_width=True):
+                _triage_set(no, "引き取り")
+                st.session_state.triage_i += 1
+                st.rerun()
+
+        nav = st.columns(2)
+        with nav[0]:
+            if st.button("スキップ →", key="tri_skip", use_container_width=True):
+                st.session_state.triage_i += 1
+                st.rerun()
+        with nav[1]:
+            if st.button("← もどる", key="tri_back",
+                         use_container_width=True, disabled=(i == 0)):
+                st.session_state.triage_i -= 1
+                st.rerun()
+
+
+# ------------------------------------------------------------
 # 画面
 # ------------------------------------------------------------
 def main():
@@ -526,9 +601,10 @@ def main():
             "検索", type="primary", use_container_width=True
         )
 
-    # まとめて登録パネル（スプレッドシート接続時のみ・検索窓のすぐ下に出す）
+    # 管理用パネル（スプレッドシート接続時のみ・検索窓のすぐ下に出す）
     if can_write():
         render_bulk_tool(df_store)
+        render_triage(df_store)
 
     # Enterキーでもボタンでも検索できるようにする
     if submitted or keyword:
