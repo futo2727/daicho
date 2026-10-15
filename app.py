@@ -559,6 +559,24 @@ def render_triage(df_store):
                 st.session_state.triage_i += 1
                 st.rerun()
 
+        # 直接入力（まだ登録していない配達者名などを自分で入れる）
+        with st.form(f"tri_form_{no}", clear_on_submit=True):
+            fc = st.columns([3, 1])
+            with fc[0]:
+                custom = st.text_input(
+                    "直接入力", placeholder="または配達者名などを入力（例：山田）",
+                    label_visibility="collapsed",
+                )
+            with fc[1]:
+                sub = st.form_submit_button("登録 →", use_container_width=True)
+        if sub:
+            if custom.strip():
+                _triage_set(no, custom.strip())
+                st.session_state.triage_i += 1
+                st.rerun()
+            else:
+                st.warning("名前を入力してください。")
+
         nav = st.columns(2)
         with nav[0]:
             if st.button("スキップ →", key="tri_skip", use_container_width=True):
